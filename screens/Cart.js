@@ -8,12 +8,14 @@ import {
 } from "react-native";
 import React, { useCallback, useState } from "react";
 import axios from "axios";
-import { useFocusEffect } from "@react-navigation/native";
+import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import PriceFormatter from "../helper/PriceFormatter";
 import { Button, Divider, IconButton, List } from "react-native-paper";
+import convertGoogleDrive from "../helper/ConvertGoogleDrive";
 
 export default function Cart() {
   const [AllProduct, setAllProduct] = useState([]);
+  const navigation = useNavigation();
 
   const getCartList = async () => {
     try {
@@ -44,12 +46,6 @@ export default function Cart() {
     } catch (err) {
       console.log(err);
     }
-  };
-
-  const convertGoogleDrive = (url) => {
-    if (!url) return null;
-    const convertProcess = url.split("/file/d/")[1]?.split("/")[0];
-    return `https://drive.google.com/uc?export=view&id=${convertProcess}`;
   };
 
   const updateQuantity = (index, change) => {
@@ -85,9 +81,11 @@ export default function Cart() {
       0
     );
   };
+
   const calculateAllQuantity = () => {
     return AllProduct.reduce((total, item) => total + item.quantity, 0);
   };
+
   useFocusEffect(
     useCallback(() => {
       getCartList();
@@ -104,7 +102,7 @@ export default function Cart() {
             flex: 1,
             gap: 10,
             padding: 20,
-            marginTop:150
+            marginTop: 150,
           }}
         >
           <Image
@@ -128,6 +126,12 @@ export default function Cart() {
           renderItem={({ item, index }) => (
             <>
               <List.Item
+                onPress={() =>
+                  navigation.navigate("Detail", {
+                    detailId: item.id,
+                    premiumData: item.productLevel === "premium" ? true : false,
+                  })
+                }
                 style={{
                   backgroundColor: "white",
                   borderRadius: 15,
@@ -145,7 +149,11 @@ export default function Cart() {
                     }}
                   >
                     <Image
-                      source={{ uri: convertGoogleDrive(item.productUrl) }}
+                      source={{
+                        uri:
+                          convertGoogleDrive(item.productUrl) ||
+                          item.productUrl,
+                      }}
                       style={{ width: 100, height: 100, borderRadius: 10 }}
                     />
                     <View>
@@ -255,6 +263,13 @@ export default function Cart() {
             <Text>{PriceFormatter(calculateTotalPrice())}</Text>
           </View>
           <Button
+            onPress={() =>
+              navigation.navigate("Checkout", {
+                quantity: calculateAllQuantity(),
+                totalPrice: calculateTotalPrice(),
+                items:AllProduct
+              })
+            }
             mode="contained"
             style={{ backgroundColor: "#AA7733", width: "70%" }}
           >

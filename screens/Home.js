@@ -13,6 +13,7 @@ import { List, Searchbar } from "react-native-paper";
 import axios from "axios";
 import PriceFormater from "../helper/PriceFormatter";
 import { useNavigation } from "@react-navigation/native";
+import { useUser } from "@clerk/clerk-expo";
 
 export default function Home() {
   const [cookiesPremiumData, setCookiesPremiumData] = useState([]);
@@ -21,6 +22,8 @@ export default function Home() {
   const [searchValue, setSearchValue] = useState("");
   const [searchQuery, setSearchQuery] = useState([]);
   const navigation = useNavigation();
+  const { user } = useUser();
+
   const handleSearch = async (q) => {
     setSearchValue(q);
     if (!q.trim()) {
@@ -41,10 +44,10 @@ export default function Home() {
     }
   };
 
-  const getCp = async () => {
+  const getCp = async (page = 1) => {
     try {
       const response = await axios.get(
-        "http://192.168.1.8:3000/CookiesPremium"
+        `http://192.168.1.8:3000/CookiesPremium/?page=${page}&limit=3`
       );
       setCookiesPremiumData(response.data.listProduct);
     } catch (err) {
@@ -52,10 +55,10 @@ export default function Home() {
     }
   };
 
-  const getPopularCookies = async () => {
+  const getPopularCookies = async (page = 1) => {
     try {
       const response = await axios.get(
-        "http://192.168.1.8:3000/CookiesPopular"
+        `http://192.168.1.8:3000/CookiesPopular?page=${page}&limit=3`
       );
       setCookiesPopularData(response.data.listPopularProduct);
     } catch (err) {
@@ -99,14 +102,14 @@ export default function Home() {
         >
           <View style={{ flexDirection: "column" }}>
             <Text style={{ fontSize: 18, fontFamily: "Poppins_700Bold" }}>
-              Hello, Imran👋
+              Hello, {user.fullName}👋
             </Text>
             <Text style={{ fontSize: 14, fontFamily: "Poppins_500Medium" }}>
               What you want to cookies today?
             </Text>
           </View>
           <Image
-            source={require("../assets/DummyProfile.jpeg")}
+            source={{ uri: user.imageUrl }}
             style={{ width: 50, height: 50, borderRadius: 10 }}
           />
         </View>
@@ -208,7 +211,15 @@ export default function Home() {
               <Text style={{ fontFamily: "Poppins_700Bold", fontSize: 22 }}>
                 Cookies Premium 🔥
               </Text>
-              <Ionicons name="ellipsis-horizontal" size={24} color="black" />
+
+              <Ionicons
+                name="ellipsis-horizontal"
+                size={24}
+                color="black"
+                onPress={() =>
+                  navigation.navigate("Other", { otherWhere: true })
+                }
+              />
             </View>
             <FlatList
               horizontal
@@ -229,10 +240,10 @@ export default function Home() {
                       borderRadius: 30,
                       margin: 5,
                       alignItems: "center",
-                      padding: 20,
                       gap: 10,
                       width: 250,
                       height: 250,
+                      justifyContent: "center",
                     }}
                   >
                     <Image
@@ -268,7 +279,14 @@ export default function Home() {
               <Text style={{ fontFamily: "Poppins_700Bold", fontSize: 22 }}>
                 Popular Now 🔥
               </Text>
-              <Ionicons name="ellipsis-horizontal" size={24} color="black" />
+              <Ionicons
+                name="ellipsis-horizontal"
+                size={24}
+                color="black"
+                onPress={() =>
+                  navigation.navigate("Other", { otherWhere: false })
+                }
+              />
             </View>
             <FlatList
               data={cookiesPopularData}
