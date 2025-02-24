@@ -2,29 +2,54 @@ import express from "express";
 import {
   arrayUnion,
   collection,
-  deleteDoc,
   doc,
   getDoc,
   getDocs,
   query,
   setDoc,
+  startAfter,
   where,
+  limit as firestoreLimit,
+  addDoc,
 } from "firebase/firestore";
 import { db } from "../config/firebase.js";
 const app = express();
 const port = 3000;
-const docId = `admin-${new Date().getTime()}`;
+const docId = `admin`;
 app.use(express.json());
 
 app.get("/CookiesPremium", async (req, res) => {
   try {
-    const q = query(collection(db, "CookiesPremium"));
-    const snapshot = await getDocs(q);
+    let { limit, page } = req.query;
+    page = parseInt(page) || 1;
+    limit = parseInt(limit) || 3;
+
+    let qref = query(collection(db, "CookiesPremium"), firestoreLimit(limit));
+    if (page > 1) {
+      const prevSnapshot = await getDocs(
+        query(
+          collection(db, "CookiesPremium"),
+          firestoreLimit((page - 1) * limit)
+        )
+      );
+      const lastVisible = prevSnapshot.docs[prevSnapshot.docs.length - 1];
+
+      if (lastVisible) {
+        qref = query(
+          collection(db, "CookiesPremium"),
+          startAfter(lastVisible),
+          firestoreLimit(limit)
+        );
+      }
+    }
     const tempData = [];
+    const snapshot = await getDocs(qref);
     snapshot.forEach((doc) => {
       tempData.push({ id: doc.id, ...doc.data() });
     });
-    res.status(200).json({ message: "Succes Get Data", listProduct: tempData });
+    res
+      .status(200)
+      .json({ message: `Success get data`, listProduct: tempData });
   } catch (err) {
     console.log(err);
     res.status(500).json({ message: `Fail Get Data ${err}` });
@@ -33,9 +58,29 @@ app.get("/CookiesPremium", async (req, res) => {
 
 app.get("/CookiesPopular", async (req, res) => {
   try {
-    const q = query(collection(db, "CookiesPopular"));
+    let { page, limit } = req.query;
+    page = parseInt(page) || 1;
+    limit = parseInt(limit) || 3;
+    let qref = query(collection(db, "CookiesPopular"), firestoreLimit(limit));
+    if (page > 1) {
+      const prevSnapshot = await getDocs(
+        query(
+          collection(db, "CookiesPopular"),
+          firestoreLimit((page - 1) * limit)
+        )
+      );
+      const lastVisible = prevSnapshot.docs[prevSnapshot.docs.length - 1];
+
+      if (lastVisible) {
+        qref = query(
+          collection(db, "CookiesPopular"),
+          startAfter(lastVisible),
+          firestoreLimit(limit)
+        );
+      }
+    }
+    const snapshot = await getDocs(qref);
     const tempData = [];
-    const snapshot = await getDocs(q);
     snapshot.forEach((doc) => {
       tempData.push({ id: doc.id, ...doc.data() });
     });
@@ -78,6 +123,47 @@ app.get("/CookiesPremium/:id", async (req, res) => {
     message: "Success get detail premium cookies !",
     productDetail: { id: docSnap.id, ...docSnap.data() },
   });
+});
+
+app.post("/addNewCookies", async (req, res) => {
+  try {
+    const {
+      imageUrl,
+      productName,
+      productDescription,
+      productPrice,
+      productType,
+      jenisProduk,
+    } = req.body;
+    if (
+      !imageUrl ||
+      !productName ||
+      !productDescription ||
+      !productPrice ||
+      !productType ||
+      !jenisProduk
+    ) {
+      return res.status(400).json({ message: "semua field harus diisi !" });
+    }
+    if (isNaN(productPrice)) {
+      return res.status(400).json({ message: "price harus berupa angka!" });
+    }
+    const validationJenis =
+      jenisProduk === "premium" ? "CookiesPremium" : "CookiesPopular";
+    await addDoc(collection(db, validationJenis), {
+      productName,
+      productDescription,
+      productPrice: Number(productPrice),
+      productType,
+      imageUrl,
+      slug: productName.toLowerCase().replace(/\s+/g, "-"),
+      createdAt: new Date(),
+      productLevel: jenisProduk,
+    });
+    res.status(200).json({ message: "berhasil add data baru" });
+  } catch (err) {
+    res.status(500).json({ message: "gagal add data baru" });
+  }
 });
 
 app.get("/searchCookies", async (req, res) => {
@@ -138,7 +224,35 @@ app.delete("/deleteCookies/:id", async (req, res) => {
           { merge: true }
         );
       }
+      console.log("Tes2");
     }
+
+    res.status(200).json({ message: "berhasil hapus data" });
+  } catch (err) {
+    res.status(500).json({ message: "gagal hapus data" });
+    console.log(err);
+  }
+});
+
+app.delete("/deleteCookiesFavorite/:id", async (req, res) => {
+  try {
+    const { id } = req.params;
+    const docRef = query(collection(db, "addToFav"));
+    const docFavSnap = await getDocs(docRef);
+    for (const document of docFavSnap.docs) {
+      const data = document.data();
+      if (data.userFavList) {
+        await setDoc(
+          doc(db, "addToFav", document.id),
+          {
+            userFavList: data.userFavList.filter((item) => item.heartId !== id),
+          },
+          { merge: true }
+        );
+      }
+      console.log("Tes");
+    }
+
     res.status(200).json({ message: "berhasil hapus data" });
   } catch (err) {
     res.status(500).json({ message: "gagal hapus data" });
@@ -178,6 +292,42 @@ app.get("/itemCart", async (req, res) => {
     res
       .status(200)
       .json({ message: "success get data cart", cartList: tempData });
+  } catch (err) {
+    console.log(err);
+  }
+});
+
+app.post("/addToFavorite", async (req, res) => {
+  try {
+    const { favItemId } = req.body;
+    if (!favItemId) {
+      return res.status(500).json({ message: "Add Item Required!" });
+    }
+    await setDoc(
+      doc(db, "addToFav", docId),
+      {
+        userFavList: arrayUnion(favItemId),
+        createdAt: new Date().toISOString(),
+      },
+      { merge: true }
+    );
+    res.status(200).json({ message: "Item success add to favorite" });
+  } catch (err) {
+    res.status(500).status({ message: "Gagal Add Ke Favorite (be)" });
+  }
+});
+
+app.get("/itemFav", async (req, res) => {
+  try {
+    const response = query(collection(db, "addToFav"));
+    const snapshot = await getDocs(response);
+    const tempData = [];
+    snapshot.forEach((doc) => {
+      tempData.push({ id: doc.id, ...doc.data() });
+    });
+    res
+      .status(200)
+      .json({ message: "Berhasil Load item Favorite", favoriteList: tempData });
   } catch (err) {
     console.log(err);
   }

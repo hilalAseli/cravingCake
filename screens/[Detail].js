@@ -4,13 +4,30 @@ import axios from "axios";
 import { IconButton } from "react-native-paper";
 import { useNavigation } from "@react-navigation/native";
 import PriceFormater from "../helper/PriceFormatter";
+import convertGoogleDrive from "../helper/ConvertGoogleDrive";
 
 export default function Detail({ route }) {
   const { detailId, premiumData } = route.params;
   const [detailData, setDetailData] = useState({});
+  const [heartUi, setHeartUi] = useState(false);
   const navigation = useNavigation();
 
   const handleHeart = async (item) => {
+    try {
+      await axios.post("http://192.168.1.8:3000/addToFavorite", {
+        favItemId: item,
+      });
+    } catch (err) {
+      setHeartUi(false);
+      console.log(err);
+    } finally {
+      console.log("item berhasil di tambahkan (fe)");
+      setHeartUi(true);
+      ToastAndroid.show("Item di tambahkan ke favorite", ToastAndroid.BOTTOM);
+    }
+  };
+
+  const handleCart = async (item) => {
     try {
       await axios.post("http://192.168.1.8:3000/addToCart", {
         addItemId: item,
@@ -33,12 +50,6 @@ export default function Detail({ route }) {
     } catch (err) {
       console.log("gagal get detail", err);
     }
-  };
-
-  const convertGoogleDrive = (url) => {
-    if (!url) return null;
-    const convertData = url.split("/file/d/")[1]?.split("/")[0];
-    return `https://drive.google.com/uc?export=view&id=${convertData}`;
   };
 
   useEffect(() => {
@@ -69,10 +80,19 @@ export default function Detail({ route }) {
               size={30}
               iconColor="white"
             />
-            <IconButton icon={"heart-outline"} size={30} iconColor="white" />
+            <IconButton
+              icon={heartUi ? "heart" : "heart-outline"}
+              size={30}
+              iconColor={heartUi ? "red" : "white"}
+              onPress={() => handleHeart({heartId : detailId})}
+            />
           </View>
           <Image
-            source={{ uri: convertGoogleDrive(detailData?.productUrl) }}
+            source={{
+              uri:
+                convertGoogleDrive(detailData?.productUrl) ||
+                detailData.productUrl,
+            }}
             style={{ height: 350, width: "100%" }}
           />
         </View>
@@ -150,7 +170,7 @@ export default function Detail({ route }) {
           icon={"cart-plus"}
           size={30}
           iconColor="white"
-          onPress={() => handleHeart(detailId)}
+          onPress={() => handleCart(detailId)}
         />
         <Text
           style={{
